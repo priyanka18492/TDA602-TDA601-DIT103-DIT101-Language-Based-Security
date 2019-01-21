@@ -1,0 +1,131 @@
+Assignment 1 TDA602 [Language-Based Security ]
+TOCTOU
+
+Done by:
+Ruslan Masinjila
+Oleksii Prykhodko
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+Deliverables:
+3x jar files (part0, part1, part2)
+3x source code folders (part0, part1, part2)
+1x runMe.sh
+1x pocket.txt
+1x wallet.txt
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+Part0:
+To run the solution execute bash script 'runMe.sh' (i.e ./runMe.sh)
+The script will promt you to input [0, 1, 2] and press ENTER. Each number coincides with the assignments part.
+
+
+Part0 Output
+//////////////////////////////////////////////////////////////////////////////////////////////////
+Your balance: 30000
+car	30000
+book	100
+pen	40
+candies	1
+What would you like to to buy?: pen
+Your new balance is: 29960
+Your pocket contains the following items:
+book
+pen
+
+
+Part1 Output
+//////////////////////////////////////////////////////////////////////////////////////////////////
+Part one is about finding a bug and exploiting it. The problem is, if two requests to the backend
+executes at the same time the result will depend on interleaving of multiple requests. 
+This happens, because the program has a shared resource, a wallet.txt file, and does not prevent multiple 
+threads or threads from accessing it at the same time, and as a result, may lead to a race condition
+whereby the thread, or instance, which finishes last is the one writing the final result to the file.
+
+Now, lets demonstrate the interleaving, where a customer can by a car for the price of the pen.
+
+wallet - shared variable
+pocket - shared variable
+wl1    - wallet_local
+cp - car price = 30,000
+
+wallet = 30,000
+-----------------
+    thread1/instance1					        thread2/instance2
+1.  wl1 = 30,000 						-
+2.	-							wl2 = 30,000
+3.  wl1 = wl1 - cp = 0 						-				//buying a car in first thread
+4.  wallet = wl1 = 0 						-				//updating wallet balance 
+5.  pocket += 'car'						-				//updating pocket
+6.  -								wl2 = wl2 - 40 = 29,000 	//buying a pen in thread2
+7.	-							wallet = wl2 = 29,960		//updating wallet balance 
+8.	-							pocket = pocket + 'pen' 	//updating pocket
+
+But the end of the execution the pocket = 'car, pen' and wallet = 29,960
+
+Selecting 1 when running 'runMe.sh' will run the solution with the interliaving enforced.
+The output becomes:
+
+shoppingCart1
+Your balance: 30000
+car	30000
+book	100
+pen	40
+candies	1
+What would you like to to buy?: car
+shoppingCart2
+Your balance: 30000
+car	30000
+book	100
+pen	40
+candies	1
+What would you like to to buy?: pen
+Your new balance is: 0
+Your new balance is: 29960
+Your pocket contains the following items:
+book
+car
+pen
+
+
+
+Part2
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+The goal of part two is to fix the problem discribed in part1. The problem is one of the most common in
+the field of concurent programming and has been solved in a lot of ways. One can use lock or a 
+binary semaphore, monitor or implement transactional memory approach. The way we approached it, is
+by locking a shared file to prevent it from being used by multiple instances of the ShoppingCart at the same time
+using FileLock from java .nio library. While FileLock can prevent different instances of the same object from accessing 
+the shared resource at the same time, it may or may not prevent multiple threads of the same instance from acessing the resource at the same time,
+depending on the underlying platfrom. In this case, if any running instance spawns multiple threads just before it accesses
+the shared resource, the threads of the spawning instance can be prevented from accessing the shared resource at the same time through Synchronization.
+In other words, the FileLock and Synchronization of threads, in combination, could be used to prevent race conditions against multiple instances,
+each of which has the capability to spawn multiple threads. 
+
+The files that were locked are wallet.txt and pocket.txt since they are susceptible to such attacks,
+and the methods from which the files are accessed are also synchronized.
+
+If you select option 2 when running 'runMe.sh', the safe code with locking will be used and
+the output will be:
+
+shoppingCart1
+Your balance: 30000
+car	30000
+book	100
+pen	40
+candies	1
+What would you like to to buy?: car
+shoppingCart2
+Your balance: 30000
+car	30000
+book	100
+pen	40
+candies	1
+What would you like to to buy?: pen
+Your new balance is: 0
+Insufficient funds!. Exiting...
+
+
+$ more pocket.txt
+book car
